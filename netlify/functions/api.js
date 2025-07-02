@@ -22,12 +22,14 @@ const getServiceAccountAuth = () => {
     }
 };
 
+// === จุดที่แก้ไข: ปรับปรุงการอ่านค่าวันที่ ===
 const parseSheetDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
     const parts = dateString.split(/[/.-]/);
     if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
+        // สมมติว่ารูปแบบใน Sheet คือ MM/DD/YYYY ตามที่ผู้ใช้แจ้ง
+        const month = parseInt(parts[0], 10) - 1; // ส่วนแรกคือเดือน
+        const day = parseInt(parts[1], 10);   // ส่วนที่สองคือวัน
         let year = parseInt(parts[2], 10);
         if (year < 100) year += 2000;
         if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
@@ -157,14 +159,13 @@ exports.handler = async (event, context) => {
                 return cleanObject;
             });
             
-            // === จุดที่แก้ไข: เพิ่มการเรียงลำดับข้อมูลตามวันที่ ===
             const dateHeaderKey = allHeaders[0].trim();
             mappedData.sort((a, b) => {
                 const dateA = parseSheetDate(a[dateHeaderKey]);
                 const dateB = parseSheetDate(b[dateHeaderKey]);
-                if (!dateA) return 1; // ย้ายรายการที่ไม่มีวันที่ไปไว้ท้ายๆ
+                if (!dateA) return 1;
                 if (!dateB) return -1;
-                return dateA - dateB; // เรียงจากเก่าไปใหม่
+                return dateA - dateB;
             });
 
             return { statusCode: 200, headers, body: JSON.stringify({ 
