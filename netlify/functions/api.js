@@ -22,14 +22,14 @@ const getServiceAccountAuth = () => {
     }
 };
 
-// === จุดที่แก้ไข: ปรับปรุงการอ่านค่าวันที่เป็น DD/MM/YYYY ===
+// === จุดที่แก้ไข 1: เปลี่ยนการอ่านค่าวันที่เป็น MM/DD/YYYY เพื่อการเรียงลำดับที่ถูกต้อง ===
 const parseSheetDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
     const parts = dateString.split(/[/.-]/);
     if (parts.length === 3) {
-        // รูปแบบใน Sheet คือ DD/MM/YYYY
-        const day = parseInt(parts[0], 10);   // ส่วนแรกคือวัน
-        const month = parseInt(parts[1], 10) - 1; // ส่วนที่สองคือเดือน
+        // Assume sheet format is MM/DD/YYYY for correct internal parsing
+        const month = parseInt(parts[0], 10) - 1; // ส่วนแรกคือเดือน
+        const day = parseInt(parts[1], 10);   // ส่วนที่สองคือวัน
         let year = parseInt(parts[2], 10);
         if (year < 100) year += 2000;
         if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
@@ -109,7 +109,7 @@ exports.handler = async (event, context) => {
             const expenseRows = await expenseSheet.getRows();
 
             const allHeaders = expenseSheet.headerValues;
-            const dateHeader = allHeaders[0];
+            const dateHeader = allHeaders[0]; // Column A
             const typeHeader = allHeaders[5];
             const costCenterHeader = allHeaders.find(h => h && h.toLowerCase().replace(/[\s_]/g, '').includes('costcenter'));
             const requestedHeader = allHeaders[14]; // Column O
@@ -146,26 +146,39 @@ exports.handler = async (event, context) => {
 
                 return true;
             });
+            
+            // เรียงลำดับข้อมูลก่อนจัดรูปแบบ
+            filteredRows.sort((a, b) => {
+                const dateA = parseSheetDate(a.get(dateHeader));
+                const dateB = parseSheetDate(b.get(dateHeader));
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                return dateA - dateB;
+            });
 
+            // === จุดที่แก้ไข 2: จัดรูปแบบวันที่ใหม่ตอนสร้างข้อมูลที่จะส่งกลับ ===
             const mappedData = filteredRows.map(row => {
                 const cleanObject = {};
                 const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
                 indicesToShow.forEach(index => {
                     const header = allHeaders[index];
                     if (header) {
-                        cleanObject[header.trim()] = row.get(header) || '';
+                        let value = row.get(header) || '';
+                        // ตรวจสอบว่าเป็นคอลัมน์วันที่หรือไม่ (A=0, W=22)
+                        if (index === 0 || index === 22) {
+                            const dateObj = parseSheetDate(value);
+                            if (dateObj) {
+                                // จัดรูปแบบใหม่เป็น DD/MM/YYYY
+                                const day = String(dateObj.getUTCDate()).padStart(2, '0');
+                                const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+                                const year = dateObj.getUTCFullYear();
+                                value = `${day}/${month}/${year}`;
+                            }
+                        }
+                        cleanObject[header.trim()] = value;
                     }
                 });
                 return cleanObject;
-            });
-            
-            const dateHeaderKey = allHeaders[0].trim();
-            mappedData.sort((a, b) => {
-                const dateA = parseSheetDate(a[dateHeaderKey]);
-                const dateB = parseSheetDate(b[dateHeaderKey]);
-                if (!dateA) return 1;
-                if (!dateB) return -1;
-                return dateA - dateB;
             });
 
             return { statusCode: 200, headers, body: JSON.stringify({ 
