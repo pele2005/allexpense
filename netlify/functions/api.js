@@ -22,7 +22,6 @@ const getServiceAccountAuth = () => {
     }
 };
 
-// ฟังก์ชันแปลงวันที่จาก Google Sheet (DD/MM/YYYY)
 const parseSheetDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
     const parts = dateString.split(/[/.-]/);
@@ -107,14 +106,20 @@ exports.handler = async (event, context) => {
             
             const expenseRows = await expenseSheet.getRows();
 
-            const dateHeader = expenseSheet.headerValues[0];
-            const typeHeader = expenseSheet.headerValues[5];
-            const costCenterHeader = expenseSheet.headerValues.find(h => h && h.toLowerCase().replace(/[\s_]/g, '').includes('costcenter'));
+            const allHeaders = expenseSheet.headerValues;
+            const dateHeader = allHeaders[0];
+            const typeHeader = allHeaders[5];
+            const costCenterHeader = allHeaders.find(h => h && h.toLowerCase().replace(/[\s_]/g, '').includes('costcenter'));
+            const requestedHeader = allHeaders[14]; // Column O
+            const clearingHeader = allHeaders[19]; // Column T
 
             if (!costCenterHeader) throw new Error("Could not find 'Cost Center' header.");
 
             const startDate = filters.startDate ? new Date(filters.startDate) : null;
             const endDate = filters.endDate ? new Date(filters.endDate) : null;
+            
+            let totalRequested = 0;
+            let totalClearing = 0;
 
             const filteredData = expenseRows.filter(row => {
                 const rowCostCenter = String(row.get(costCenterHeader) || '').trim();
@@ -132,12 +137,18 @@ exports.handler = async (event, context) => {
                 if (startDate && rowDate < startDate) return false;
                 if (endDate && rowDate > endDate) return false;
                 
+                // === จุดที่แก้ไข 1: คำนวณผลรวมที่นี่เลย ===
+                const requestedValue = parseFloat(String(row.get(requestedHeader) || '0').replace(/,/g, ''));
+                const clearingValue = parseFloat(String(row.get(clearingHeader) || '0').replace(/,/g, ''));
+                if (!isNaN(requestedValue)) totalRequested += requestedValue;
+                if (!isNaN(clearingValue)) totalClearing += clearingValue;
+
                 return true;
             }).map(row => {
                 const cleanObject = {};
                 const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
                 indicesToShow.forEach(index => {
-                    const header = expenseSheet.headerValues[index];
+                    const header = allHeaders[index];
                     if (header) {
                         cleanObject[header.trim()] = row.get(header) || '';
                     }
@@ -145,13 +156,24 @@ exports.handler = async (event, context) => {
                 return cleanObject;
             });
 
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: filteredData, lastUpdate }) };
+            // === จุดที่แก้ไข 2: ส่งผลรวมที่คำนวณเสร็จแล้วกลับไป ===
+            return { statusCode: 200, headers, body: JSON.stringify({ 
+                success: true, 
+                data: filteredData, 
+                lastUpdate,
+                totalRequested,
+                totalClearing 
+            }) };
         }
 
         return { statusCode: 400, headers, body: JSON.stringify({ success: false, message: 'Invalid action' }) };
 
     } catch (error) {
         console.error('API Error:', error);
-        return { statusCode: 500, headers, body: JSON.stringify({ success: false, message: 'เกิดข้อผิดพลาดภายใน Server: ' + error.message }) };
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ success: false, message: 'เกิดข้อผิดพลาดภายใน Server: ' + error.message })
+        };
     }
 };
