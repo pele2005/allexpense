@@ -22,7 +22,8 @@ const getServiceAccountAuth = () => {
     }
 };
 
-const parseDate = (dateString) => {
+// ฟังก์ชันแปลงวันที่จาก Google Sheet (DD/MM/YYYY)
+const parseSheetDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
     const parts = dateString.split(/[/.-]/);
     if (parts.length === 3) {
@@ -112,8 +113,10 @@ exports.handler = async (event, context) => {
 
             if (!costCenterHeader) throw new Error("Could not find 'Cost Center' header.");
 
-            const startDate = filters.startDate ? parseDate(filters.startDate) : null;
-            const endDate = filters.endDate ? parseDate(filters.endDate) : null;
+            // === จุดที่แก้ไข: เปลี่ยนวิธีแปลงวันที่จาก Filter ให้ถูกต้อง ===
+            // new Date() สามารถเข้าใจรูปแบบ 'YYYY-MM-DD' ที่ส่งมาจากหน้าเว็บได้โดยตรง
+            const startDate = filters.startDate ? new Date(filters.startDate) : null;
+            const endDate = filters.endDate ? new Date(filters.endDate) : null;
 
             const filteredData = expenseRows.filter(row => {
                 const rowCostCenter = String(row.get(costCenterHeader) || '').trim();
@@ -126,7 +129,8 @@ exports.handler = async (event, context) => {
                 const rowType = String(row.get(typeHeader) || '').trim();
                 if (filters.type !== 'all' && rowType !== filters.type) return false;
 
-                const rowDate = parseDate(row.get(dateHeader));
+                // ใช้ฟังก์ชัน parseSheetDate สำหรับวันที่จาก Google Sheet เท่านั้น
+                const rowDate = parseSheetDate(row.get(dateHeader));
                 if (!rowDate) return false;
                 if (startDate && rowDate < startDate) return false;
                 if (endDate && rowDate > endDate) return false;
@@ -138,7 +142,6 @@ exports.handler = async (event, context) => {
                 indicesToShow.forEach(index => {
                     const header = expenseSheet.headerValues[index];
                     if (header) {
-                        // === จุดที่แก้ไข: ตัดช่องว่างออกจากชื่อ Header เพื่อให้ Key สะอาด ===
                         cleanObject[header.trim()] = row.get(header) || '';
                     }
                 });
