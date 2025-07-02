@@ -87,7 +87,6 @@ exports.handler = async (event, context) => {
             return { statusCode: 401, headers, body: JSON.stringify({ success: false, message: 'Cost Center หรือรหัสผ่านไม่ถูกต้อง' }) };
         }
 
-        // === Action ใหม่สำหรับดึงสิทธิ์ ===
         if (action === 'getPermissions') {
             const permissions = await getPermissionsForUser(auth, payload.costCenter);
             return { statusCode: 200, headers, body: JSON.stringify({ success: true, permissions }) };
@@ -107,8 +106,8 @@ exports.handler = async (event, context) => {
             
             const expenseRows = await expenseSheet.getRows();
 
-            const dateHeader = expenseSheet.headerValues[0]; // Column A
-            const typeHeader = expenseSheet.headerValues[5]; // Column F
+            const dateHeader = expenseSheet.headerValues[0];
+            const typeHeader = expenseSheet.headerValues[5];
             const costCenterHeader = expenseSheet.headerValues.find(h => h && h.toLowerCase().replace(/[\s_]/g, '').includes('costcenter'));
 
             if (!costCenterHeader) throw new Error("Could not find 'Cost Center' header.");
@@ -117,7 +116,6 @@ exports.handler = async (event, context) => {
             const endDate = filters.endDate ? parseDate(filters.endDate) : null;
 
             const filteredData = expenseRows.filter(row => {
-                // Filter by selected Cost Center
                 const rowCostCenter = String(row.get(costCenterHeader) || '').trim();
                 if (filters.selectedCostCenter !== 'all') {
                     if (rowCostCenter !== filters.selectedCostCenter) return false;
@@ -135,14 +133,13 @@ exports.handler = async (event, context) => {
                 
                 return true;
             }).map(row => {
-                // === จุดที่แก้ไข: เลือกคอลัมน์ที่จะแสดงผล ===
                 const cleanObject = {};
-                // ตำแหน่งคอลัมน์ A, E-T, W
                 const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
                 indicesToShow.forEach(index => {
                     const header = expenseSheet.headerValues[index];
                     if (header) {
-                        cleanObject[header] = row.get(header) || '';
+                        // === จุดที่แก้ไข: ตัดช่องว่างออกจากชื่อ Header เพื่อให้ Key สะอาด ===
+                        cleanObject[header.trim()] = row.get(header) || '';
                     }
                 });
                 return cleanObject;
