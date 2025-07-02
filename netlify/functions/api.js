@@ -4,7 +4,7 @@ const { JWT } = require('google-auth-library');
 
 // --- ข้อมูลสำคัญที่ต้องตั้งค่าใน Environment Variables ของ Netlify ---
 // 1. GOOGLE_SERVICE_ACCOUNT_CREDS_JSON
-// 2. TOTAL_EXPENSE_SHEET_ID: 1iQ18yGtavcRAlD0Gu3Igr2qpCuFGT4dl4b32lWBTOdY  <-- **สำคัญ: ต้องใช้ ID ใหม่นี้**
+// 2. TOTAL_EXPENSE_SHEET_ID: 1iQ18yGtavcRAlD0Gu3Igr2qpCuFGT4dl4b32lWBTOdY
 // 3. USER_SHEET_ID: 1E-1fKvOG2Yd88RM3WmTAKEzB-Ve1uBuFyDXKGc-ehXY
 // 4. PERMISSION_SHEET_ID: 1LXyGjplIU6WZPF-0Ty10aOO_Dl2Kq_lO7EqdhjtZl80
 
@@ -22,7 +22,6 @@ const getServiceAccountAuth = () => {
     }
 };
 
-// ฟังก์ชันแปลงวันที่จาก DD/MM/YYYY เป็น Object ที่เปรียบเทียบได้
 const parseDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
     const parts = dateString.split(/[/.-]/);
@@ -30,10 +29,7 @@ const parseDate = (dateString) => {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
         let year = parseInt(parts[2], 10);
-        // Handle YYYY and YY format
-        if (year < 100) {
-            year += 2000;
-        }
+        if (year < 100) year += 2000;
         if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
             return new Date(Date.UTC(year, month, day));
         }
@@ -41,6 +37,24 @@ const parseDate = (dateString) => {
     return null;
 };
 
+const getPermissionsForUser = async (auth, costCenter) => {
+    const permDoc = new GoogleSpreadsheet(process.env.PERMISSION_SHEET_ID, auth);
+    await permDoc.loadInfo();
+    const permSheet = permDoc.sheetsByIndex[0];
+    const permRows = await permSheet.getRows();
+    const permUserHeader = permSheet.headerValues[0];
+    const userPermissionRow = permRows.find(row => String(row.get(permUserHeader) || '').trim() === costCenter);
+    let accessibleCostCenters = [costCenter];
+    if (userPermissionRow) {
+        for (let i = 1; i < permSheet.headerValues.length; i++) {
+            const header = permSheet.headerValues[i];
+            if (userPermissionRow.get(header)) {
+                accessibleCostCenters.push(String(userPermissionRow.get(header)).trim());
+            }
+        }
+    }
+    return [...new Set(accessibleCostCenters)];
+};
 
 exports.handler = async (event, context) => {
     const headers = {
@@ -58,7 +72,6 @@ exports.handler = async (event, context) => {
         const action = payload.action;
         const auth = getServiceAccountAuth();
 
-        // --- Action: Login ---
         if (action === 'login') {
             const doc = new GoogleSpreadsheet(process.env.USER_SHEET_ID, auth);
             await doc.loadInfo();
@@ -74,81 +87,68 @@ exports.handler = async (event, context) => {
             return { statusCode: 401, headers, body: JSON.stringify({ success: false, message: 'Cost Center หรือรหัสผ่านไม่ถูกต้อง' }) };
         }
 
-        // --- Action: Get Data ---
+        // === Action ใหม่สำหรับดึงสิทธิ์ ===
+        if (action === 'getPermissions') {
+            const permissions = await getPermissionsForUser(auth, payload.costCenter);
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true, permissions }) };
+        }
+
         if (action === 'getData') {
             const { costCenter, filters } = payload;
+            const accessibleCostCenters = await getPermissionsForUser(auth, costCenter);
 
-            // 1. ดึงสิทธิ์การเข้าถึง (Permission)
-            const permDoc = new GoogleSpreadsheet(process.env.PERMISSION_SHEET_ID, auth);
-            await permDoc.loadInfo();
-            const permSheet = permDoc.sheetsByIndex[0];
-            const permRows = await permSheet.getRows();
-            const permUserHeader = permSheet.headerValues[0]; 
-            const userPermissionRow = permRows.find(row => String(row.get(permUserHeader) || '').trim() === costCenter);
-            let accessibleCostCenters = [costCenter];
-            if (userPermissionRow) {
-                for (let i = 1; i < permSheet.headerValues.length; i++) {
-                    const header = permSheet.headerValues[i];
-                    if (userPermissionRow.get(header)) {
-                        accessibleCostCenters.push(String(userPermissionRow.get(header)).trim());
-                    }
-                }
-            }
-            accessibleCostCenters = [...new Set(accessibleCostCenters)];
-
-            // 2. ดึงข้อมูลค่าใช้จ่ายทั้งหมด
             const expenseDoc = new GoogleSpreadsheet(process.env.TOTAL_EXPENSE_SHEET_ID, auth);
             await expenseDoc.loadInfo();
             const expenseSheet = expenseDoc.sheetsByIndex[0];
+            
+            await expenseSheet.loadCells('AB2');
+            const updateDateCell = expenseSheet.getCellByA1('AB2');
+            const lastUpdate = updateDateCell.formattedValue || 'ไม่ระบุ';
+            
             const expenseRows = await expenseSheet.getRows();
 
-            // 3. กรองข้อมูลตามเงื่อนไข
             const dateHeader = expenseSheet.headerValues[0]; // Column A
             const typeHeader = expenseSheet.headerValues[5]; // Column F
             const costCenterHeader = expenseSheet.headerValues.find(h => h && h.toLowerCase().replace(/[\s_]/g, '').includes('costcenter'));
 
             if (!costCenterHeader) throw new Error("Could not find 'Cost Center' header.");
 
-            const startDate = filters.startDate ? new Date(filters.startDate) : null;
-            const endDate = filters.endDate ? new Date(filters.endDate) : null;
+            const startDate = filters.startDate ? parseDate(filters.startDate) : null;
+            const endDate = filters.endDate ? parseDate(filters.endDate) : null;
 
             const filteredData = expenseRows.filter(row => {
-                // Filter by Permission
+                // Filter by selected Cost Center
                 const rowCostCenter = String(row.get(costCenterHeader) || '').trim();
-                if (!accessibleCostCenters.includes(rowCostCenter)) {
-                    return false;
+                if (filters.selectedCostCenter !== 'all') {
+                    if (rowCostCenter !== filters.selectedCostCenter) return false;
+                } else {
+                    if (!accessibleCostCenters.includes(rowCostCenter)) return false;
                 }
 
-                // Filter by Type
                 const rowType = String(row.get(typeHeader) || '').trim();
-                if (filters.type !== 'all' && rowType !== filters.type) {
-                    return false;
-                }
+                if (filters.type !== 'all' && rowType !== filters.type) return false;
 
-                // Filter by Date Range
                 const rowDate = parseDate(row.get(dateHeader));
-                if (!rowDate) return false; // ไม่แสดงแถวที่ไม่มีวันที่
-                if (startDate && rowDate < startDate) {
-                    return false;
-                }
-                if (endDate && rowDate > endDate) {
-                    return false;
-                }
+                if (!rowDate) return false;
+                if (startDate && rowDate < startDate) return false;
+                if (endDate && rowDate > endDate) return false;
                 
                 return true;
             }).map(row => {
-                // 4. เลือกเฉพาะคอลัมน์ A-W มาแสดงผล
+                // === จุดที่แก้ไข: เลือกคอลัมน์ที่จะแสดงผล ===
                 const cleanObject = {};
-                for (let i = 0; i < 23; i++) { // A=0 to W=22
-                    const header = expenseSheet.headerValues[i];
+                // ตำแหน่งคอลัมน์ A, E-T, W
+                const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
+                indicesToShow.forEach(index => {
+                    const header = expenseSheet.headerValues[index];
                     if (header) {
                         cleanObject[header] = row.get(header) || '';
                     }
-                }
+                });
                 return cleanObject;
             });
 
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: filteredData }) };
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: filteredData, lastUpdate }) };
         }
 
         return { statusCode: 400, headers, body: JSON.stringify({ success: false, message: 'Invalid action' }) };
