@@ -29,13 +29,13 @@
             100% { transform: rotate(360deg); }
         }
         thead th {
-            position: -webkit-sticky; /* For Safari */
+            position: -webkit-sticky;
             position: sticky;
             top: 0;
             z-index: 10;
         }
         tbody td:first-child {
-            position: -webkit-sticky; /* For Safari */
+            position: -webkit-sticky;
             position: sticky;
             left: 0;
             background-color: white; 
@@ -292,7 +292,10 @@
                     lastUpdateDiv.textContent = `ข้อมูลอัพเดทล่าสุดเมื่อ: ${result.lastUpdate || 'N/A'}`;
                     currentData = result.data;
                     populateTable(currentData);
-                    calculateAndDisplayTotals(currentData);
+                    
+                    // === จุดที่แก้ไข: เรียกใช้ฟังก์ชันแสดงผลรวมที่คำนวณจากหลังบ้าน ===
+                    displayTotals(result.totalRequested, result.totalClearing);
+                    
                     if (currentData.length > 0) {
                         downloadButton.style.display = 'inline-block';
                         totalsSection.classList.remove('hidden');
@@ -310,49 +313,10 @@
             }
         }
         
-        // === จุดที่แก้ไข: เขียนฟังก์ชันคำนวณผลรวมใหม่ทั้งหมด ===
-        function calculateAndDisplayTotals(data) {
-            let totalRequested = 0;
-            let totalClearing = 0;
-
-            if (!data || data.length === 0) {
-                totalRequestedEl.textContent = '0.00';
-                totalClearingEl.textContent = '0.00';
-                return;
-            }
-
-            // 1. หาชื่อหัวข้อที่ถูกต้องจากข้อมูลจริง (ป้องกันปัญหาชื่อไม่ตรง)
-            const headers = Object.keys(data[0]);
-            
-            // 2. สร้างฟังก์ชันค้นหาที่ยืดหยุ่นมากขึ้น
-            const findHeader = (headers, keywords) => {
-                return headers.find(h => {
-                    const lowerHeader = h.toLowerCase().replace(/[\s_]/g, ''); // ลบช่องว่างและ _ ออกทั้งหมด
-                    return keywords.every(keyword => lowerHeader.includes(keyword));
-                });
-            };
-
-            const requestedHeader = findHeader(headers, ['requested', 'amount']);
-            const clearingHeader = findHeader(headers, ['clearing', 'amount']);
-
-            // 3. ถ้าหาหัวข้อเจอ ให้เริ่มคำนวณ
-            if (requestedHeader && clearingHeader) {
-                data.forEach(row => {
-                    const requestedValue = parseFloat(String(row[requestedHeader] || '0').replace(/,/g, ''));
-                    const clearingValue = parseFloat(String(row[clearingHeader] || '0').replace(/,/g, ''));
-                    
-                    if (!isNaN(requestedValue)) totalRequested += requestedValue;
-                    if (!isNaN(clearingValue)) totalClearing += clearingValue;
-                });
-            } else {
-                // แจ้งเตือนใน Console ของเบราว์เซอร์ (กด F12 เพื่อดู) ถ้าหาหัวข้อไม่เจอ
-                console.error("Could not find 'Requested amount' or 'Clearing amount' headers for calculation. Please check the Google Sheet header names.");
-                console.log("Available headers:", headers);
-            }
-            
-            // 4. แสดงผลลัพธ์
-            totalRequestedEl.textContent = totalRequested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            totalClearingEl.textContent = totalClearing.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        // === จุดที่แก้ไข: เปลี่ยนเป็นฟังก์ชันแสดงผลอย่างเดียว ===
+        function displayTotals(totalRequested, totalClearing) {
+            totalRequestedEl.textContent = (totalRequested || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            totalClearingEl.textContent = (totalClearing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function populateTable(data) {
