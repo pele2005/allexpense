@@ -121,7 +121,7 @@ exports.handler = async (event, context) => {
             let totalRequested = 0;
             let totalClearing = 0;
 
-            const filteredData = expenseRows.filter(row => {
+            const filteredRows = expenseRows.filter(row => {
                 const rowCostCenter = String(row.get(costCenterHeader) || '').trim();
                 if (filters.selectedCostCenter !== 'all') {
                     if (rowCostCenter !== filters.selectedCostCenter) return false;
@@ -137,14 +137,15 @@ exports.handler = async (event, context) => {
                 if (startDate && rowDate < startDate) return false;
                 if (endDate && rowDate > endDate) return false;
                 
-                // === จุดที่แก้ไข 1: คำนวณผลรวมที่นี่เลย ===
                 const requestedValue = parseFloat(String(row.get(requestedHeader) || '0').replace(/,/g, ''));
                 const clearingValue = parseFloat(String(row.get(clearingHeader) || '0').replace(/,/g, ''));
                 if (!isNaN(requestedValue)) totalRequested += requestedValue;
                 if (!isNaN(clearingValue)) totalClearing += clearingValue;
 
                 return true;
-            }).map(row => {
+            });
+
+            const mappedData = filteredRows.map(row => {
                 const cleanObject = {};
                 const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
                 indicesToShow.forEach(index => {
@@ -155,11 +156,20 @@ exports.handler = async (event, context) => {
                 });
                 return cleanObject;
             });
+            
+            // === จุดที่แก้ไข: เพิ่มการเรียงลำดับข้อมูลตามวันที่ ===
+            const dateHeaderKey = allHeaders[0].trim();
+            mappedData.sort((a, b) => {
+                const dateA = parseSheetDate(a[dateHeaderKey]);
+                const dateB = parseSheetDate(b[dateHeaderKey]);
+                if (!dateA) return 1; // ย้ายรายการที่ไม่มีวันที่ไปไว้ท้ายๆ
+                if (!dateB) return -1;
+                return dateA - dateB; // เรียงจากเก่าไปใหม่
+            });
 
-            // === จุดที่แก้ไข 2: ส่งผลรวมที่คำนวณเสร็จแล้วกลับไป ===
             return { statusCode: 200, headers, body: JSON.stringify({ 
                 success: true, 
-                data: filteredData, 
+                data: mappedData, 
                 lastUpdate,
                 totalRequested,
                 totalClearing 
