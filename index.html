@@ -45,7 +45,6 @@
             left: 0;
             z-index: 20;
         }
-        /* ทำให้ช่องเลือกวันที่ดูชัดเจนขึ้น */
         .flatpickr-input {
             background-color: #f0f9ff;
             border: 2px solid #3b82f6;
@@ -113,7 +112,6 @@
                     <div id="cost-center-filter-container" class="hidden">
                         <label for="cost-center-filter" class="block text-sm font-medium text-gray-700">เลือก Cost Center</label>
                         <select id="cost-center-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                            <!-- Options will be populated by JS -->
                         </select>
                     </div>
                 </div>
@@ -312,20 +310,32 @@
             }
         }
         
+        // === จุดที่แก้ไข: เขียนฟังก์ชันคำนวณผลรวมใหม่ทั้งหมด ===
         function calculateAndDisplayTotals(data) {
             let totalRequested = 0;
             let totalClearing = 0;
 
-            if (data.length === 0) {
+            if (!data || data.length === 0) {
                 totalRequestedEl.textContent = '0.00';
                 totalClearingEl.textContent = '0.00';
                 return;
             }
 
+            // 1. หาชื่อหัวข้อที่ถูกต้องจากข้อมูลจริง (ป้องกันปัญหาชื่อไม่ตรง)
             const headers = Object.keys(data[0]);
-            const requestedHeader = headers.find(h => h.toLowerCase().includes('requested amount'));
-            const clearingHeader = headers.find(h => h.toLowerCase().includes('clearing amount'));
+            
+            // 2. สร้างฟังก์ชันค้นหาที่ยืดหยุ่นมากขึ้น
+            const findHeader = (headers, keywords) => {
+                return headers.find(h => {
+                    const lowerHeader = h.toLowerCase().replace(/[\s_]/g, ''); // ลบช่องว่างและ _ ออกทั้งหมด
+                    return keywords.every(keyword => lowerHeader.includes(keyword));
+                });
+            };
 
+            const requestedHeader = findHeader(headers, ['requested', 'amount']);
+            const clearingHeader = findHeader(headers, ['clearing', 'amount']);
+
+            // 3. ถ้าหาหัวข้อเจอ ให้เริ่มคำนวณ
             if (requestedHeader && clearingHeader) {
                 data.forEach(row => {
                     const requestedValue = parseFloat(String(row[requestedHeader] || '0').replace(/,/g, ''));
@@ -335,9 +345,12 @@
                     if (!isNaN(clearingValue)) totalClearing += clearingValue;
                 });
             } else {
-                console.error("Could not find 'Requested amount' or 'Clearing amount' headers for calculation.");
+                // แจ้งเตือนใน Console ของเบราว์เซอร์ (กด F12 เพื่อดู) ถ้าหาหัวข้อไม่เจอ
+                console.error("Could not find 'Requested amount' or 'Clearing amount' headers for calculation. Please check the Google Sheet header names.");
+                console.log("Available headers:", headers);
             }
             
+            // 4. แสดงผลลัพธ์
             totalRequestedEl.textContent = totalRequested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             totalClearingEl.textContent = totalClearing.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
