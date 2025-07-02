@@ -145,11 +145,6 @@ exports.handler = async (event, context) => {
                 return cleanObject;
             });
 
-            // === จุดที่เพิ่มเข้ามาเพื่อ Debug ===
-            if (filteredData.length > 0) {
-                console.log("[API DEBUG] Keys of the first data object being sent:", Object.keys(filteredData[0]));
-            }
-
             return { statusCode: 200, headers, body: JSON.stringify({ success: true, data: filteredData, lastUpdate }) };
         }
 
@@ -160,13 +155,3 @@ exports.handler = async (event, context) => {
         return { statusCode: 500, headers, body: JSON.stringify({ success: false, message: 'เกิดข้อผิดพลาดภายใน Server: ' + error.message }) };
     }
 };
-```
-
-**ขั้นตอนต่อไปที่คุณต้องทำ:**
-
-1.  **Push โค้ด:** นำโค้ดที่อัปเดตนี้ Push ขึ้น GitHub แล้วรอให้ Netlify Deploy ใหม่
-2.  **เปิด Function Log:** ไปที่หน้าเว็บ Netlify > แท็บ **Functions** > คลิกที่ function `api`
-3.  **ทดลองในเว็บ:** กลับไปที่หน้าเว็บโปรแกรมของคุณ แล้วกดปุ่ม "แสดงข้อมูล" อีกครั้ง
-4.  **ตรวจสอบ Log:** กลับมาที่หน้า Function Log ของ Netlify คุณจะเห็นข้อความใหม่ขึ้นมา มีลักษณะประมาณนี้:
-    `[API DEBUG] Keys of the first data object being sent: [ 'Date', 'Type', 'Requested amount', 'Clearing amount', ... ]`
-5.  **ส่งผลลัพธ์ให้ผม:** ช่วยคัดลอกข้อความในวงเล็บ `[...]` ทั้งหมดจาก Log นั้นมาให้ผมดูครับ มันจะบอกเราได้ทันทีว่าชื่อหัวข้อที่แท้จริงคืออะไร และเราจะสามารถแก้ไขปัญหาที่ต้นตอได้อย่างแน่นอนค
