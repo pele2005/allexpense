@@ -6,10 +6,8 @@
     <title>รายงานค่าใช้จ่ายทั้งหมด</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-    <!-- เพิ่ม Library สำหรับ Date Picker -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
@@ -29,15 +27,14 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* CSS สำหรับตรึงตาราง (Freeze Panes) */
         thead th {
-            position: -webkit-sticky; /* For Safari */
+            position: -webkit-sticky;
             position: sticky;
             top: 0;
             z-index: 10;
         }
         tbody td:first-child {
-            position: -webkit-sticky; /* For Safari */
+            position: -webkit-sticky;
             position: sticky;
             left: 0;
             background-color: white; 
@@ -46,6 +43,11 @@
         thead th:first-child {
             left: 0;
             z-index: 20;
+        }
+        /* === จุดที่แก้ไข 1: ทำให้ช่องเลือกวันที่ดูชัดเจนขึ้น === */
+        .flatpickr-input {
+            background-color: #f0f9ff;
+            border: 2px solid #3b82f6;
         }
     </style>
 </head>
@@ -88,11 +90,10 @@
                 </button>
             </div>
             
-            <!-- === ส่วน Filter ใหม่ === -->
             <div id="filter-section" class="bg-white p-4 rounded-xl shadow-md mb-6">
                 <h2 class="text-xl font-bold mb-4 text-gray-700">ตัวกรองข้อมูล</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <!-- Date Range -->
+                <!-- === จุดที่แก้ไข 2: ปรับปรุง Layout ของ Filter ทั้งหมด === -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div>
                         <label for="start-date" class="block text-sm font-medium text-gray-700">วันที่เริ่มต้น</label>
                         <input type="text" id="start-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
@@ -101,13 +102,19 @@
                         <label for="end-date" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด</label>
                         <input type="text" id="end-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                     </div>
-                    <!-- Type Filter -->
                     <div>
-                        <label for="type-filter" class="block text-sm font-medium text-gray-700">Type (Column F)</label>
+                        <label for="type-filter" class="block text-sm font-medium text-gray-700">ประเภทค่าใช้จ่าย</label>
                         <select id="type-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                             <option value="all">ทั้งหมด</option>
                             <option value="Internal">Internal</option>
-                            <option value="External">External</option>
+                            <option value="External" selected>External</option>
+                        </select>
+                    </div>
+                    <!-- Filter Cost Center (สำหรับผู้มีสิทธิ์หลายที่) -->
+                    <div id="cost-center-filter-container" class="hidden">
+                        <label for="cost-center-filter" class="block text-sm font-medium text-gray-700">เลือก Cost Center</label>
+                        <select id="cost-center-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                            <!-- Options will be populated by JS -->
                         </select>
                     </div>
                 </div>
@@ -118,9 +125,9 @@
                 </div>
             </div>
 
-            <!-- ส่วนแสดงผลลัพธ์ -->
             <div id="results-section" class="hidden">
-                <div class="flex justify-end mb-4">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div id="last-update" class="text-sm text-gray-500 bg-blue-100 border-l-4 border-blue-500 p-3 rounded-md"></div>
                     <button id="download-button" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
                         Download Excel
                     </button>
@@ -133,9 +140,23 @@
                         <thead class="bg-gray-50"></thead>
                         <tbody class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
-                     <div id="no-data" class="text-center py-10 text-gray-500 hidden">
-                        <p>ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
+                </div>
+                <!-- === จุดที่แก้ไข 3: เพิ่มส่วนแสดงผลรวม === -->
+                <div id="totals-section" class="mt-4 p-4 bg-gray-800 text-white rounded-xl shadow-md hidden">
+                    <h3 class="text-lg font-bold mb-2">สรุปยอดรวม</h3>
+                    <div class="flex justify-around flex-wrap gap-4">
+                        <div class="text-center">
+                            <p class="text-sm text-gray-400">ยอดรวม Requested amount</p>
+                            <p id="total-requested" class="text-2xl font-semibold text-green-400">0.00</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-sm text-gray-400">ยอดรวม Clearing amount</p>
+                            <p id="total-clearing" class="text-2xl font-semibold text-yellow-400">0.00</p>
+                        </div>
                     </div>
+                </div>
+                 <div id="no-data" class="text-center py-10 text-gray-500 hidden">
+                    <p>ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
                 </div>
             </div>
         </div>
@@ -158,17 +179,49 @@
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
         const typeFilterSelect = document.getElementById('type-filter');
+        const costCenterFilterContainer = document.getElementById('cost-center-filter-container');
+        const costCenterFilterSelect = document.getElementById('cost-center-filter');
+        const lastUpdateDiv = document.getElementById('last-update');
+        const totalsSection = document.getElementById('totals-section');
+        const totalRequestedEl = document.getElementById('total-requested');
+        const totalClearingEl = document.getElementById('total-clearing');
 
         const API_ENDPOINT = '/.netlify/functions/api';
         let currentData = [];
 
-        // Initialize Date Pickers
-        flatpickr(startDateInput, { dateFormat: "Y-m-d" });
-        flatpickr(endDateInput, { dateFormat: "Y-m-d" });
+        flatpickr(startDateInput, { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", allowInput: true });
+        flatpickr(endDateInput, { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", allowInput: true });
 
         function showLoginError(message) {
             loginError.textContent = message;
             loginError.classList.remove('hidden');
+        }
+        
+        // === จุดที่แก้ไข 4: สร้างฟังก์ชันสำหรับดึงสิทธิ์และตั้งค่า Filter ===
+        async function setupFilters(costCenter) {
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getPermissions', costCenter })
+                });
+                const result = await response.json();
+                if (result.success && result.permissions.length > 1) {
+                    costCenterFilterSelect.innerHTML = '<option value="all">ทั้งหมด</option>';
+                    result.permissions.forEach(cc => {
+                        const option = document.createElement('option');
+                        option.value = cc;
+                        option.textContent = cc;
+                        costCenterFilterSelect.appendChild(option);
+                    });
+                    costCenterFilterContainer.classList.remove('hidden');
+                } else {
+                     costCenterFilterContainer.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Could not fetch permissions:", error);
+                costCenterFilterContainer.classList.add('hidden');
+            }
         }
 
         async function handleLogin(event) {
@@ -209,6 +262,7 @@
             dataSection.classList.remove('hidden');
             const costCenter = localStorage.getItem('costCenter');
             welcomeMessage.textContent = `สำหรับ Cost Center: ${costCenter}`;
+            setupFilters(costCenter); // เรียกใช้ฟังก์ชันตั้งค่า Filter
         }
 
         async function handleApplyFilter() {
@@ -217,11 +271,13 @@
             dataTableContainer.classList.add('hidden');
             noDataMessage.classList.add('hidden');
             downloadButton.style.display = 'none';
+            totalsSection.classList.add('hidden');
 
             const filters = {
                 startDate: startDateInput.value,
                 endDate: endDateInput.value,
-                type: typeFilterSelect.value
+                type: typeFilterSelect.value,
+                selectedCostCenter: costCenterFilterSelect.value || 'all'
             };
 
             const costCenter = localStorage.getItem('costCenter');
@@ -238,10 +294,13 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    lastUpdateDiv.textContent = `ข้อมูลอัพเดทล่าสุดเมื่อ: ${result.lastUpdate || 'N/A'}`;
                     currentData = result.data;
                     populateTable(currentData);
+                    calculateAndDisplayTotals(currentData); // คำนวณและแสดงผลรวม
                     if (currentData.length > 0) {
                         downloadButton.style.display = 'inline-block';
+                        totalsSection.classList.remove('hidden');
                     }
                 } else {
                     alert('ไม่สามารถโหลดข้อมูลได้: ' + result.message);
@@ -254,6 +313,25 @@
                 loader.style.display = 'none';
                 dataTableContainer.classList.remove('hidden');
             }
+        }
+        
+        // === จุดที่แก้ไข 5: เพิ่มฟังก์ชันคำนวณและแสดงผลรวม ===
+        function calculateAndDisplayTotals(data) {
+            let totalRequested = 0;
+            let totalClearing = 0;
+
+            const requestedHeader = "Requested amount";
+            const clearingHeader = "Clearing amount";
+
+            data.forEach(row => {
+                const requested = parseFloat(String(row[requestedHeader] || '0').replace(/,/g, ''));
+                const clearing = parseFloat(String(row[clearingHeader] || '0').replace(/,/g, ''));
+                if (!isNaN(requested)) totalRequested += requested;
+                if (!isNaN(clearing)) totalClearing += clearing;
+            });
+            
+            totalRequestedEl.textContent = totalRequested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            totalClearingEl.textContent = totalClearing.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function populateTable(data) {
