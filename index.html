@@ -45,10 +45,8 @@
             left: 0;
             z-index: 20;
         }
-        .flatpickr-input {
-            background-color: #f0f9ff;
-            border: 2px solid #3b82f6;
-        }
+        /* === จุดที่แก้ไข 1: ลบสไตล์เดิมของ flatpickr-input ออกไป === */
+        /* เราจะใช้ Tailwind CSS จัดการสไตล์ทั้งหมดแทน */
     </style>
 </head>
 <body class="bg-gray-100">
@@ -93,17 +91,18 @@
             <div id="filter-section" class="bg-white p-4 rounded-xl shadow-md mb-6">
                 <h2 class="text-xl font-bold mb-4 text-gray-700">ตัวกรองข้อมูล</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <!-- === จุดที่แก้ไข 2: เพิ่ม Class ให้กับ Input และ Select ทั้งหมด === -->
                     <div>
                         <label for="start-date" class="block text-sm font-medium text-gray-700">วันที่เริ่มต้น</label>
-                        <input type="text" id="start-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <input type="text" id="start-date" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
                     </div>
                     <div>
                         <label for="end-date" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด</label>
-                        <input type="text" id="end-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <input type="text" id="end-date" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
                     </div>
                     <div>
                         <label for="type-filter" class="block text-sm font-medium text-gray-700">ประเภทค่าใช้จ่าย</label>
-                        <select id="type-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <select id="type-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
                             <option value="all">ทั้งหมด</option>
                             <option value="Internal">Internal</option>
                             <option value="External" selected>External</option>
@@ -111,7 +110,7 @@
                     </div>
                     <div id="cost-center-filter-container" class="hidden">
                         <label for="cost-center-filter" class="block text-sm font-medium text-gray-700">เลือก Cost Center</label>
-                        <select id="cost-center-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <select id="cost-center-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
                         </select>
                     </div>
                 </div>
@@ -292,10 +291,7 @@
                     lastUpdateDiv.textContent = `ข้อมูลอัพเดทล่าสุดเมื่อ: ${result.lastUpdate || 'N/A'}`;
                     currentData = result.data;
                     populateTable(currentData);
-                    
-                    // === จุดที่แก้ไข: เรียกใช้ฟังก์ชันแสดงผลรวมที่คำนวณจากหลังบ้าน ===
                     displayTotals(result.totalRequested, result.totalClearing);
-                    
                     if (currentData.length > 0) {
                         downloadButton.style.display = 'inline-block';
                         totalsSection.classList.remove('hidden');
@@ -313,7 +309,6 @@
             }
         }
         
-        // === จุดที่แก้ไข: เปลี่ยนเป็นฟังก์ชันแสดงผลอย่างเดียว ===
         function displayTotals(totalRequested, totalClearing) {
             totalRequestedEl.textContent = (totalRequested || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             totalClearingEl.textContent = (totalClearing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
