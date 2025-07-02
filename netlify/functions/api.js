@@ -22,14 +22,14 @@ const getServiceAccountAuth = () => {
     }
 };
 
-// === จุดที่แก้ไข: ปรับปรุงการอ่านค่าวันที่ ===
+// === จุดที่แก้ไข: ปรับปรุงการอ่านค่าวันที่เป็น DD/MM/YYYY ===
 const parseSheetDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
     const parts = dateString.split(/[/.-]/);
     if (parts.length === 3) {
-        // สมมติว่ารูปแบบใน Sheet คือ MM/DD/YYYY ตามที่ผู้ใช้แจ้ง
-        const month = parseInt(parts[0], 10) - 1; // ส่วนแรกคือเดือน
-        const day = parseInt(parts[1], 10);   // ส่วนที่สองคือวัน
+        // รูปแบบใน Sheet คือ DD/MM/YYYY
+        const day = parseInt(parts[0], 10);   // ส่วนแรกคือวัน
+        const month = parseInt(parts[1], 10) - 1; // ส่วนที่สองคือเดือน
         let year = parseInt(parts[2], 10);
         if (year < 100) year += 2000;
         if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
