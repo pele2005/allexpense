@@ -1,92 +1,124 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upload & Expense Report</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen p-6">
-  <div class="max-w-5xl mx-auto">
-    <h1 class="text-3xl font-bold text-center mb-6">Expense Upload & Report</h1>
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { JWT } = require('google-auth-library');
+const XLSX = require('xlsx');
+const Busboy = require('busboy');
 
-    <!-- Upload Section -->
-    <div class="bg-white p-6 rounded shadow mb-8">
-      <h2 class="text-xl font-semibold mb-4">Upload Excel File</h2>
-      <form id="uploadForm" class="grid gap-4 md:grid-cols-2">
-        <div>
-          <label for="username" class="block mb-1 text-sm font-medium">Select User</label>
-          <select id="username" name="username" required class="w-full p-2 border border-gray-300 rounded">
-            <option value="">-- Choose --</option>
-            <option value="kittipong">kittipong</option>
-            <option value="chaliya">chaliya</option>
-            <option value="sudarat">sudarat</option>
-            <option value="soithong">soithong</option>
-          </select>
-        </div>
-        <div>
-          <label for="file" class="block mb-1 text-sm font-medium">Upload Excel (.xlsx)</label>
-          <input type="file" id="file" name="file" accept=".xlsx" required class="w-full" />
-        </div>
-        <div class="col-span-2">
-          <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-            Upload File
-          </button>
-        </div>
-        <div id="message" class="col-span-2 text-center text-sm mt-2"></div>
-      </form>
-    </div>
+exports.handler = async (event, context) => {
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ success: false, message: 'Method Not Allowed' }),
+    };
+  }
 
-    <!-- Report Section -->
-    <div class="bg-white p-6 rounded shadow">
-      <h2 class="text-xl font-semibold mb-4">Upload Log Report</h2>
-      <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vQZ9X_XYZ123456abc123456XYZ/pubhtml?gid=0&single=true&widget=true&headers=false" width="100%" height="400"></iframe>
-      <!-- Replace with your actual public Google Sheet embed link -->
-    </div>
-  </div>
+  return new Promise((resolve, reject) => {
+    const busboy = Busboy({ headers: event.headers });
+    const fields = {};
+    let fileBuffer = Buffer.from('');
+    let fileName = '';
 
-  <script>
-    const form = document.getElementById('uploadForm');
-    const message = document.getElementById('message');
+    busboy.on('file', (fieldname, file, filename) => {
+      fileName = filename;
+      file.on('data', (data) => {
+        fileBuffer = Buffer.concat([fileBuffer, data]);
+      });
+    });
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      message.textContent = 'Uploading...';
-      message.className = 'text-center text-sm text-gray-600';
+    busboy.on('field', (fieldname, value) => {
+      fields[fieldname] = value;
+    });
 
-      const username = document.getElementById('username').value;
-      const file = document.getElementById('file').files[0];
-
-      if (!file || !username) {
-        message.textContent = 'Please select user and file.';
-        message.className = 'text-red-600 text-sm mt-2';
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('username', username);
-
+    busboy.on('finish', async () => {
       try {
-        const res = await fetch('/.netlify/functions/upload-expense', {
-          method: 'POST',
-          body: formData
+        if (!fields.username || !fileBuffer.length) {
+          return resolve({
+            statusCode: 400,
+            body: JSON.stringify({ success: false, message: 'Missing user or file' }),
+          });
+        }
+
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        const sheet = workbook.Sheets['Data'];
+        const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+        const expectedHeaders = [
+          'Date','Month','Year','Team','Cost_Center','Type','Account_Group','Account','Hospital','Hospital_Remark',
+          'Doctor','Event','Description','Request','Request_Amount','Payby','Payee','Status','Clearing_Date','Clearing_Amount',
+          'Plan','Created_By','Created_At','Updated_By','Update_ At','Updated_By_2','Updated_At','Updated_date'
+        ];
+
+        const firstRowKeys = Object.keys(jsonData[0] || {});
+        const missing = expectedHeaders.filter(h => !firstRowKeys.includes(h));
+        if (missing.length > 0) {
+          return resolve({
+            statusCode: 400,
+            body: JSON.stringify({ success: false, message: 'Missing headers: ' + missing.join(', ') })
+          });
+        }
+
+        const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_CREDS_JSON);
+        const auth = new JWT({
+          email: creds.client_email,
+          key: creds.private_key,
+          scopes: ['https://www.googleapis.com/auth/spreadsheets']
         });
 
-        const result = await res.json();
-        if (result.success) {
-          message.textContent = '✅ Upload successful';
-          message.className = 'text-green-600 mt-2';
-        } else {
-          message.textContent = '❌ Upload failed: ' + (result.message || 'Unknown error');
-          message.className = 'text-red-600 mt-2';
-        }
+        const doc = new GoogleSpreadsheet(process.env.TOTAL_EXPENSE_SHEET_ID, auth);
+        await doc.loadInfo();
+        const sheetExpense = doc.sheetsByIndex[0];
+        const sheetLog = doc.sheetsByTitle['Upload Log'] || await doc.addSheet({
+          title: 'Upload Log',
+          headerValues: ['Timestamp', 'Username', 'File Name', 'Status', 'Note']
+        });
+
+        await sheetExpense.addRows(jsonData);
+        await sheetExpense.loadCells('AB2');
+        sheetExpense.getCellByA1('AB2').value = new Date().toISOString();
+        await sheetExpense.saveUpdatedCells();
+
+        await sheetLog.addRow({
+          Timestamp: new Date().toISOString(),
+          Username: fields.username,
+          'File Name': fileName,
+          Status: 'Success',
+          Note: `Imported ${jsonData.length} rows`
+        });
+
+        return resolve({ statusCode: 200, body: JSON.stringify({ success: true }) });
       } catch (err) {
-        console.error(err);
-        message.textContent = '❌ Error during upload';
-        message.className = 'text-red-600 mt-2';
+        console.error('Upload error:', err);
+
+        try {
+          const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_CREDS_JSON);
+          const auth = new JWT({
+            email: creds.client_email,
+            key: creds.private_key,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets']
+          });
+          const doc = new GoogleSpreadsheet(process.env.TOTAL_EXPENSE_SHEET_ID, auth);
+          await doc.loadInfo();
+          const sheetLog = doc.sheetsByTitle['Upload Log'] || await doc.addSheet({
+            title: 'Upload Log',
+            headerValues: ['Timestamp', 'Username', 'File Name', 'Status', 'Note']
+          });
+          await sheetLog.addRow({
+            Timestamp: new Date().toISOString(),
+            Username: fields.username || 'Unknown',
+            'File Name': fileName,
+            Status: 'Failed',
+            Note: err.message
+          });
+        } catch (logErr) {
+          console.error('Logging failed:', logErr);
+        }
+
+        return resolve({
+          statusCode: 500,
+          body: JSON.stringify({ success: false, message: err.message }),
+        });
       }
     });
-  </script>
-</body>
-</html>
+
+    busboy.end(Buffer.from(event.body, 'base64'));
+  });
+};
