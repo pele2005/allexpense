@@ -37,6 +37,36 @@ const parseSheetDate = (dateString) => {
     return null;
 };
 
+// === NEW FUNCTION: สำหรับจัดรูปแบบตัวเลข ===
+const formatNumber = (value) => {
+    // ถ้าค่าเป็น null, undefined หรือค่าว่าง ให้ส่งค่าว่างกลับไป
+    if (value === null || value === undefined || String(value).trim() === '') return '';
+    
+    // แปลงค่าเป็นตัวเลข (ลบเครื่องหมาย , ออกก่อน)
+    const num = parseFloat(String(value).replace(/,/g, ''));
+
+    // ถ้าแปลงแล้วไม่ใช่ตัวเลข ให้ส่งค่าเดิมกลับไป
+    if (isNaN(num)) {
+        return value;
+    }
+
+    // ตรวจสอบว่ามีทศนิยมที่มีนัยสำคัญหรือไม่ (ไม่ใช่ .00)
+    // ใช้ Math.abs เพื่อจัดการค่าบวกลบ และ epsilon (0.001) เพื่อความแม่นยำในการเปรียบเทียบเลขทศนิยม
+    if (Math.abs(num - Math.round(num)) > 0.001) {
+        // ถ้ามีทศนิยม ให้แสดง 2 ตำแหน่ง
+        return num.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    } else {
+        // ถ้าไม่มีทศนิยม (หรือเป็น .00) ให้ไม่ต้องแสดงทศนิยม
+        return num.toLocaleString('en-US', {
+            maximumFractionDigits: 0,
+        });
+    }
+};
+
+
 const getPermissionsForUser = async (auth, costCenter) => {
     const permDoc = new GoogleSpreadsheet(process.env.PERMISSION_SHEET_ID, auth);
     await permDoc.loadInfo();
@@ -126,7 +156,6 @@ exports.handler = async (event, context) => {
             const pendingStatuses = ["รอแนบใบตอบขอบคุณ", "รอแนบใบเสร็จ"];
 
             const filteredRows = expenseRows.filter(row => {
-                // Cost Center filter
                 const rowCostCenter = String(row.get(costCenterHeader) || '').trim();
                 if (filters.selectedCostCenter !== 'all') {
                     if (rowCostCenter !== filters.selectedCostCenter) return false;
@@ -134,11 +163,9 @@ exports.handler = async (event, context) => {
                     if (!accessibleCostCenters.includes(rowCostCenter)) return false;
                 }
 
-                // Type filter
                 const rowType = String(row.get(typeHeader) || '').trim();
                 if (filters.type !== 'all' && rowType !== filters.type) return false;
 
-                // === NEW STATUS FILTER LOGIC ===
                 if (filters.status === 'pending') {
                     const rowStatus = String(row.get(statusHeader) || '').trim();
                     if (!pendingStatuses.includes(rowStatus)) {
@@ -146,13 +173,11 @@ exports.handler = async (event, context) => {
                     }
                 }
 
-                // Date filter
                 const rowDate = parseSheetDate(row.get(dateHeader));
                 if (!rowDate) return false;
                 if (startDate && rowDate < startDate) return false;
                 if (endDate && rowDate > endDate) return false;
                 
-                // Calculate totals
                 const requestedValue = parseFloat(String(row.get(requestedHeader) || '0').replace(/,/g, ''));
                 const clearingValue = parseFloat(String(row.get(clearingHeader) || '0').replace(/,/g, ''));
                 if (!isNaN(requestedValue)) totalRequested += requestedValue;
@@ -161,7 +186,6 @@ exports.handler = async (event, context) => {
                 return true;
             });
             
-            // Sort data before formatting
             filteredRows.sort((a, b) => {
                 const dateA = parseSheetDate(a.get(dateHeader));
                 const dateB = parseSheetDate(b.get(dateHeader));
@@ -170,6 +194,7 @@ exports.handler = async (event, context) => {
                 return dateA - dateB;
             });
 
+            // === UPDATED MAPPING LOGIC ===
             const mappedData = filteredRows.map(row => {
                 const cleanObject = {};
                 const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
@@ -177,6 +202,8 @@ exports.handler = async (event, context) => {
                     const header = allHeaders[index];
                     if (header) {
                         let value = row.get(header) || '';
+                        
+                        // จัดรูปแบบวันที่
                         if (index === 0 || index === 22) {
                             const dateObj = parseSheetDate(value);
                             if (dateObj) {
@@ -185,7 +212,12 @@ exports.handler = async (event, context) => {
                                 const year = dateObj.getUTCFullYear();
                                 value = `${day}/${month}/${year}`;
                             }
+                        } 
+                        // จัดรูปแบบตัวเลขสำหรับคอลัมน์ที่ต้องการ
+                        else if (index === 14 || index === 19) { // 14: Request_Amount, 19: Clearing_Amount
+                            value = formatNumber(value);
                         }
+
                         cleanObject[header.trim()] = value;
                     }
                 });
