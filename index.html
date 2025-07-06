@@ -45,15 +45,13 @@
             left: 0;
             z-index: 20;
         }
-        /* === จุดที่แก้ไข 1: ลบสไตล์เดิมของ flatpickr-input ออกไป === */
-        /* เราจะใช้ Tailwind CSS จัดการสไตล์ทั้งหมดแทน */
     </style>
 </head>
 <body class="bg-gray-100">
 
     <div id="app" class="container mx-auto p-4 md:p-8 max-w-7xl">
 
-        <!-- ===== ส่วน Login (เหมือนเดิม) ===== -->
+        <!-- ===== Login Section (No changes) ===== -->
         <div id="login-section" class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl mt-10">
             <div class="p-8">
                 <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">รายงานค่าใช้จ่ายทั้งหมด</h1>
@@ -76,7 +74,7 @@
             </div>
         </div>
 
-        <!-- ===== ส่วนแสดงข้อมูลและ Filter (ปรับปรุงใหม่) ===== -->
+        <!-- ===== Data and Filter Section (Updated) ===== -->
         <div id="data-section" class="hidden">
              <div class="flex justify-between items-start mb-4 flex-wrap gap-4">
                 <div>
@@ -90,8 +88,8 @@
             
             <div id="filter-section" class="bg-white p-4 rounded-xl shadow-md mb-6">
                 <h2 class="text-xl font-bold mb-4 text-gray-700">ตัวกรองข้อมูล</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-                    <!-- === จุดที่แก้ไข 2: เพิ่ม Class ให้กับ Input และ Select ทั้งหมด === -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                    <!-- Date Filters -->
                     <div>
                         <label for="start-date" class="block text-sm font-medium text-gray-700">วันที่เริ่มต้น</label>
                         <input type="text" id="start-date" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -100,6 +98,7 @@
                         <label for="end-date" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด</label>
                         <input type="text" id="end-date" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
                     </div>
+                    <!-- Type Filter -->
                     <div>
                         <label for="type-filter" class="block text-sm font-medium text-gray-700">ประเภทค่าใช้จ่าย</label>
                         <select id="type-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -108,6 +107,15 @@
                             <option value="External" selected>External</option>
                         </select>
                     </div>
+                    <!-- === NEW STATUS FILTER === -->
+                    <div>
+                        <label for="status-filter" class="block text-sm font-medium text-gray-700">สถานะ</label>
+                        <select id="status-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                            <option value="all" selected>ทั้งหมด</option>
+                            <option value="pending">รอเคลียร์</option>
+                        </select>
+                    </div>
+                    <!-- Cost Center Filter -->
                     <div id="cost-center-filter-container" class="hidden">
                         <label for="cost-center-filter" class="block text-sm font-medium text-gray-700">เลือก Cost Center</label>
                         <select id="cost-center-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -121,6 +129,7 @@
                 </div>
             </div>
 
+            <!-- Results Section (No changes) -->
             <div id="results-section" class="hidden">
                 <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
                     <div id="last-update" class="text-sm text-gray-500 bg-blue-100 border-l-4 border-blue-500 p-3 rounded-md"></div>
@@ -174,6 +183,7 @@
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
         const typeFilterSelect = document.getElementById('type-filter');
+        const statusFilterSelect = document.getElementById('status-filter'); // New element
         const costCenterFilterContainer = document.getElementById('cost-center-filter-container');
         const costCenterFilterSelect = document.getElementById('cost-center-filter');
         const lastUpdateDiv = document.getElementById('last-update');
@@ -267,10 +277,12 @@
             downloadButton.style.display = 'none';
             totalsSection.classList.add('hidden');
 
+            // Add new status filter to the payload
             const filters = {
                 startDate: startDateInput.value,
                 endDate: endDateInput.value,
                 type: typeFilterSelect.value,
+                status: statusFilterSelect.value, // New value
                 selectedCostCenter: costCenterFilterSelect.value || 'all'
             };
 
