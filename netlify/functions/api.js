@@ -37,52 +37,46 @@ const parseSheetDate = (dateString) => {
     return null;
 };
 
-// === NEW FUNCTION: สำหรับจัดรูปแบบตัวเลข ===
 const formatNumber = (value) => {
-    // ถ้าค่าเป็น null, undefined หรือค่าว่าง ให้ส่งค่าว่างกลับไป
     if (value === null || value === undefined || String(value).trim() === '') return '';
-    
-    // แปลงค่าเป็นตัวเลข (ลบเครื่องหมาย , ออกก่อน)
     const num = parseFloat(String(value).replace(/,/g, ''));
-
-    // ถ้าแปลงแล้วไม่ใช่ตัวเลข ให้ส่งค่าเดิมกลับไป
     if (isNaN(num)) {
         return value;
     }
-
-    // ตรวจสอบว่ามีทศนิยมที่มีนัยสำคัญหรือไม่ (ไม่ใช่ .00)
-    // ใช้ Math.abs เพื่อจัดการค่าบวกลบ และ epsilon (0.001) เพื่อความแม่นยำในการเปรียบเทียบเลขทศนิยม
     if (Math.abs(num - Math.round(num)) > 0.001) {
-        // ถ้ามีทศนิยม ให้แสดง 2 ตำแหน่ง
         return num.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         });
     } else {
-        // ถ้าไม่มีทศนิยม (หรือเป็น .00) ให้ไม่ต้องแสดงทศนิยม
         return num.toLocaleString('en-US', {
             maximumFractionDigits: 0,
         });
     }
 };
 
-
+// === ฟังก์ชันอ่านสิทธิ์ (Permission) ===
 const getPermissionsForUser = async (auth, costCenter) => {
     const permDoc = new GoogleSpreadsheet(process.env.PERMISSION_SHEET_ID, auth);
     await permDoc.loadInfo();
     const permSheet = permDoc.sheetsByIndex[0];
-    const permRows = await permSheet.getRows();
+    const permRows = await permSheet.getRows(); // ดึงข้อมูลทุกแถวและคอลัมน์ที่มี
     const permUserHeader = permSheet.headerValues[0];
     const userPermissionRow = permRows.find(row => String(row.get(permUserHeader) || '').trim() === costCenter);
-    let accessibleCostCenters = [costCenter];
+    
+    let accessibleCostCenters = [costCenter]; // เพิ่ม Cost Center ของตัวเองเข้าไปก่อนเสมอ
+    
     if (userPermissionRow) {
+        // วนลูปอ่านทุกคอลัมน์ที่มีหัวข้อ (Header) ตั้งแต่คอลัมน์ที่ 2 (B) เป็นต้นไป
+        // โค้ดส่วนนี้จะอ่านคอลัมน์ไปจนถึง AL และไกลกว่านั้นโดยอัตโนมัติ
         for (let i = 1; i < permSheet.headerValues.length; i++) {
             const header = permSheet.headerValues[i];
-            if (userPermissionRow.get(header)) {
+            if (userPermissionRow.get(header)) { // ถ้าคอลัมน์นั้นมีข้อมูล
                 accessibleCostCenters.push(String(userPermissionRow.get(header)).trim());
             }
         }
     }
+    // ส่งกลับรายการ Cost Center ที่ไม่ซ้ำกัน
     return [...new Set(accessibleCostCenters)];
 };
 
@@ -194,7 +188,6 @@ exports.handler = async (event, context) => {
                 return dateA - dateB;
             });
 
-            // === UPDATED MAPPING LOGIC ===
             const mappedData = filteredRows.map(row => {
                 const cleanObject = {};
                 const indicesToShow = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
@@ -203,7 +196,6 @@ exports.handler = async (event, context) => {
                     if (header) {
                         let value = row.get(header) || '';
                         
-                        // จัดรูปแบบวันที่
                         if (index === 0 || index === 22) {
                             const dateObj = parseSheetDate(value);
                             if (dateObj) {
@@ -213,8 +205,7 @@ exports.handler = async (event, context) => {
                                 value = `${day}/${month}/${year}`;
                             }
                         } 
-                        // จัดรูปแบบตัวเลขสำหรับคอลัมน์ที่ต้องการ
-                        else if (index === 14 || index === 19) { // 14: Request_Amount, 19: Clearing_Amount
+                        else if (index === 14 || index === 19) {
                             value = formatNumber(value);
                         }
 
