@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
@@ -28,30 +28,150 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        thead th {
-            position: -webkit-sticky;
+
+        /* ===== Compact Table Styles ===== */
+        #data-table-container {
+            border-radius: 12px;
+            overflow: auto;
+            max-height: 62vh;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .data-table {
+            min-width: 100%;
+            border-collapse: collapse;
+        }
+
+        /* Sticky header */
+        .data-table thead th {
             position: sticky;
             top: 0;
             z-index: 10;
+            padding: 8px 10px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            background-color: #1e3a5f;
+            color: #e2e8f0;
+            white-space: nowrap;
+            border-right: 1px solid #2d4a6f;
+            user-select: none;
         }
-        tbody td:first-child {
-            position: -webkit-sticky;
+        .data-table thead th:last-child {
+            border-right: none;
+        }
+
+        /* Sticky first column (row number) */
+        .data-table thead th:first-child,
+        .data-table tbody td:first-child {
             position: sticky;
             left: 0;
-            background-color: white; 
+            z-index: 11;
+        }
+        .data-table thead th:first-child {
+            z-index: 15;
+            background-color: #1e3a5f;
+        }
+        .data-table tbody td:first-child {
+            background-color: inherit;
             z-index: 5;
         }
-        thead th:first-child {
-            left: 0;
-            z-index: 20;
+
+        /* Table cells */
+        .data-table tbody td {
+            padding: 5px 10px;
+            font-size: 0.78rem;
+            color: #374151;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
         }
+
+        /* Alternating row colors */
+        .data-table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+        }
+        .data-table tbody tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .data-table tbody tr:hover {
+            background-color: #eff6ff !important;
+        }
+
+        /* Column type styles */
+        .col-nowrap {
+            white-space: nowrap;
+        }
+        .col-number {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+        }
+        .col-truncate {
+            max-width: 160px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: default;
+        }
+        .col-rowno {
+            color: #94a3b8;
+            text-align: center;
+            width: 38px;
+            min-width: 38px;
+            font-size: 0.7rem;
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            white-space: nowrap;
+            line-height: 1.6;
+        }
+        .badge-wait-thank  { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .badge-wait-receipt { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .badge-done        { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .badge-default     { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+        /* Tooltip hint */
+        .col-truncate:hover::after {
+            content: attr(title);
+            position: absolute;
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: normal;
+            max-width: 280px;
+            word-break: break-word;
+            z-index: 999;
+            pointer-events: none;
+            margin-top: 2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .data-table tbody td.col-truncate {
+            position: relative;
+        }
+
+        /* Scrollbar styling */
+        #data-table-container::-webkit-scrollbar { height: 6px; width: 6px; }
+        #data-table-container::-webkit-scrollbar-track { background: #f1f5f9; }
+        #data-table-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+        #data-table-container::-webkit-scrollbar-thumb:hover { background: #64748b; }
     </style>
 </head>
 <body class="bg-gray-100">
 
     <div id="app" class="container mx-auto p-4 md:p-8 max-w-7xl">
 
-        <!-- ===== Login Section (No changes) ===== -->
+        <!-- ===== Login Section ===== -->
         <div id="login-section" class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl mt-10">
             <div class="p-8">
                 <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">รายงานค่าใช้จ่ายทั้งหมด</h1>
@@ -74,7 +194,7 @@
             </div>
         </div>
 
-        <!-- ===== Data and Filter Section (Updated) ===== -->
+        <!-- ===== Data and Filter Section ===== -->
         <div id="data-section" class="hidden">
              <div class="flex justify-between items-start mb-4 flex-wrap gap-4">
                 <div>
@@ -85,11 +205,10 @@
                     ออกจากระบบ
                 </button>
             </div>
-            
+
             <div id="filter-section" class="bg-white p-4 rounded-xl shadow-md mb-6">
                 <h2 class="text-xl font-bold mb-4 text-gray-700">ตัวกรองข้อมูล</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                    <!-- Date Filters -->
                     <div>
                         <label for="start-date" class="block text-sm font-medium text-gray-700">วันที่เริ่มต้น</label>
                         <input type="text" id="start-date" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -98,7 +217,6 @@
                         <label for="end-date" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด</label>
                         <input type="text" id="end-date" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
                     </div>
-                    <!-- Type Filter -->
                     <div>
                         <label for="type-filter" class="block text-sm font-medium text-gray-700">ประเภทค่าใช้จ่าย</label>
                         <select id="type-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -107,7 +225,6 @@
                             <option value="External" selected>External</option>
                         </select>
                     </div>
-                    <!-- === NEW STATUS FILTER === -->
                     <div>
                         <label for="status-filter" class="block text-sm font-medium text-gray-700">สถานะ</label>
                         <select id="status-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -115,7 +232,6 @@
                             <option value="pending">รอเคลียร์</option>
                         </select>
                     </div>
-                    <!-- Cost Center Filter -->
                     <div id="cost-center-filter-container" class="hidden">
                         <label for="cost-center-filter" class="block text-sm font-medium text-gray-700">เลือก Cost Center</label>
                         <select id="cost-center-filter" class="mt-1 block w-full rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
@@ -129,10 +245,13 @@
                 </div>
             </div>
 
-            <!-- Results Section (No changes) -->
+            <!-- Results Section -->
             <div id="results-section" class="hidden">
-                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-                    <div id="last-update" class="text-sm text-gray-500 bg-blue-100 border-l-4 border-blue-500 p-3 rounded-md"></div>
+                <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div id="last-update" class="text-sm text-gray-500 bg-blue-100 border-l-4 border-blue-500 p-3 rounded-md"></div>
+                        <div id="row-count" class="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-md hidden"></div>
+                    </div>
                     <button id="download-button" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
                         Download Excel
                     </button>
@@ -140,12 +259,20 @@
                 <div id="loader" class="flex justify-center items-center my-10">
                     <div class="loader"></div>
                 </div>
-                <div id="data-table-container" class="bg-white rounded-xl shadow-md overflow-auto max-h-[70vh] hidden">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50"></thead>
-                        <tbody class="bg-white divide-y divide-gray-200"></tbody>
+
+                <!-- Compact hint bar -->
+                <div id="table-hint" class="hidden mb-1 flex items-center gap-2 text-xs text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>
+                    <span>Hover เหนือข้อความที่ถูกตัด (…) เพื่อดูข้อมูลเต็ม</span>
+                </div>
+
+                <div id="data-table-container" class="hidden">
+                    <table class="data-table">
+                        <thead></thead>
+                        <tbody></tbody>
                     </table>
                 </div>
+
                 <div id="totals-section" class="mt-4 p-4 bg-gray-800 text-white rounded-xl shadow-md hidden">
                     <h3 class="text-lg font-bold mb-2">สรุปยอดรวม</h3>
                     <div class="flex justify-around flex-wrap gap-4">
@@ -159,7 +286,8 @@
                         </div>
                     </div>
                 </div>
-                 <div id="no-data" class="text-center py-10 text-gray-500 hidden">
+
+                <div id="no-data" class="text-center py-10 text-gray-500 hidden">
                     <p>ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
                 </div>
             </div>
@@ -183,13 +311,15 @@
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
         const typeFilterSelect = document.getElementById('type-filter');
-        const statusFilterSelect = document.getElementById('status-filter'); // New element
+        const statusFilterSelect = document.getElementById('status-filter');
         const costCenterFilterContainer = document.getElementById('cost-center-filter-container');
         const costCenterFilterSelect = document.getElementById('cost-center-filter');
         const lastUpdateDiv = document.getElementById('last-update');
         const totalsSection = document.getElementById('totals-section');
         const totalRequestedEl = document.getElementById('total-requested');
         const totalClearingEl = document.getElementById('total-clearing');
+        const rowCountEl = document.getElementById('row-count');
+        const tableHint = document.getElementById('table-hint');
 
         const API_ENDPOINT = '/.netlify/functions/api';
         let currentData = [];
@@ -201,7 +331,7 @@
             loginError.textContent = message;
             loginError.classList.remove('hidden');
         }
-        
+
         async function setupFilters(costCenter) {
             try {
                 const response = await fetch(API_ENDPOINT, {
@@ -220,7 +350,7 @@
                     });
                     costCenterFilterContainer.classList.remove('hidden');
                 } else {
-                     costCenterFilterContainer.classList.add('hidden');
+                    costCenterFilterContainer.classList.add('hidden');
                 }
             } catch (error) {
                 console.error("Could not fetch permissions:", error);
@@ -260,7 +390,7 @@
                 submitButton.textContent = 'เข้าสู่ระบบ';
             }
         }
-        
+
         function showDataSection() {
             loginSection.classList.add('hidden');
             dataSection.classList.remove('hidden');
@@ -276,13 +406,14 @@
             noDataMessage.classList.add('hidden');
             downloadButton.style.display = 'none';
             totalsSection.classList.add('hidden');
+            rowCountEl.classList.add('hidden');
+            tableHint.classList.add('hidden');
 
-            // Add new status filter to the payload
             const filters = {
                 startDate: startDateInput.value,
                 endDate: endDateInput.value,
                 type: typeFilterSelect.value,
-                status: statusFilterSelect.value, // New value
+                status: statusFilterSelect.value,
                 selectedCostCenter: costCenterFilterSelect.value || 'all'
             };
 
@@ -296,7 +427,7 @@
                 });
 
                 if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-                
+
                 const result = await response.json();
 
                 if (result.success) {
@@ -307,6 +438,9 @@
                     if (currentData.length > 0) {
                         downloadButton.style.display = 'inline-block';
                         totalsSection.classList.remove('hidden');
+                        rowCountEl.textContent = `พบ ${currentData.length.toLocaleString()} รายการ`;
+                        rowCountEl.classList.remove('hidden');
+                        tableHint.classList.remove('hidden');
                     }
                 } else {
                     alert('ไม่สามารถโหลดข้อมูลได้: ' + result.message);
@@ -320,12 +454,42 @@
                 dataTableContainer.classList.remove('hidden');
             }
         }
-        
+
         function displayTotals(totalRequested, totalClearing) {
             totalRequestedEl.textContent = (totalRequested || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             totalClearingEl.textContent = (totalClearing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        // ===== Helper: detect column type from sample data =====
+        function detectColType(data, header) {
+            const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+            const samples = data.slice(0, 20).map(r => String(r[header] || '').trim()).filter(v => v !== '');
+            if (samples.length === 0) return 'text';
+
+            const dateCount = samples.filter(v => datePattern.test(v)).length;
+            if (dateCount / samples.length > 0.7) return 'date';
+
+            const numCount = samples.filter(v => !isNaN(parseFloat(v.replace(/,/g, ''))) && v !== '').length;
+            if (numCount / samples.length > 0.7) return 'number';
+
+            return 'text';
+        }
+
+        // ===== Helper: status badge =====
+        function getStatusBadge(value) {
+            const v = value.trim();
+            let cls = 'badge-default';
+            if (v === 'รอแนบใบตอบขอบคุณ') cls = 'badge-wait-thank';
+            else if (v === 'รอแนบใบเสร็จ') cls = 'badge-wait-receipt';
+            else if (v.includes('เคลียร์แล้ว') || v.includes('เสร็จ') || v === 'Cleared') cls = 'badge-done';
+
+            const span = document.createElement('span');
+            span.className = `badge ${cls}`;
+            span.textContent = v || '—';
+            return span;
+        }
+
+        // ===== Main table render =====
         function populateTable(data) {
             const tableHead = dataTableContainer.querySelector('thead');
             const tableBody = dataTableContainer.querySelector('tbody');
@@ -338,23 +502,77 @@
             }
 
             const headers = Object.keys(data[0]);
+
+            // Detect column types
+            const colTypes = headers.map(h => detectColType(data, h));
+
+            // Detect status column
+            const statusColIndex = headers.findIndex(h =>
+                h.toLowerCase().includes('status') || h.toLowerCase().includes('สถานะ')
+            );
+
+            // ---- Build header row ----
             const headerRow = document.createElement('tr');
-            headers.forEach(headerText => {
+
+            // Row number column header
+            const thNo = document.createElement('th');
+            thNo.textContent = '#';
+            thNo.style.width = '38px';
+            thNo.style.textAlign = 'center';
+            headerRow.appendChild(thNo);
+
+            headers.forEach((headerText, i) => {
                 const th = document.createElement('th');
-                th.className = 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50';
+                if (colTypes[i] === 'number') {
+                    th.style.textAlign = 'right';
+                    th.style.minWidth = '90px';
+                } else if (colTypes[i] === 'date') {
+                    th.style.minWidth = '88px';
+                } else if (i === statusColIndex) {
+                    th.style.minWidth = '130px';
+                } else {
+                    th.style.minWidth = '100px';
+                    th.style.maxWidth = '160px';
+                }
                 th.textContent = headerText;
                 headerRow.appendChild(th);
             });
             tableHead.appendChild(headerRow);
 
-            data.forEach(rowData => {
+            // ---- Build data rows ----
+            data.forEach((rowData, rowIndex) => {
                 const row = document.createElement('tr');
-                headers.forEach(header => {
+
+                // Row number cell
+                const tdNo = document.createElement('td');
+                tdNo.className = 'col-rowno col-nowrap';
+                tdNo.textContent = rowIndex + 1;
+                row.appendChild(tdNo);
+
+                headers.forEach((header, i) => {
                     const cell = document.createElement('td');
-                    cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
-                    cell.textContent = rowData[header];
+                    const value = String(rowData[header] || '');
+
+                    if (i === statusColIndex && value.trim() !== '') {
+                        // Status badge
+                        cell.appendChild(getStatusBadge(value));
+                        cell.title = value;
+                    } else if (colTypes[i] === 'number') {
+                        cell.className = 'col-number';
+                        cell.textContent = value;
+                    } else if (colTypes[i] === 'date') {
+                        cell.className = 'col-nowrap';
+                        cell.textContent = value;
+                    } else {
+                        // Text: truncate with tooltip
+                        cell.className = 'col-truncate';
+                        cell.title = value;
+                        cell.textContent = value;
+                    }
+
                     row.appendChild(cell);
                 });
+
                 tableBody.appendChild(row);
             });
         }
@@ -367,7 +585,7 @@
             resultsSection.classList.add('hidden');
             currentData = [];
         }
-        
+
         function handleDownloadExcel() {
             if (currentData.length === 0) {
                 alert('ไม่มีข้อมูลสำหรับดาวน์โหลด');
