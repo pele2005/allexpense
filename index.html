@@ -165,6 +165,15 @@
         #data-table-container::-webkit-scrollbar-track { background: #f1f5f9; }
         #data-table-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
         #data-table-container::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Search highlight */
+        mark.search-highlight {
+            background-color: #fef08a;
+            color: #713f12;
+            border-radius: 2px;
+            padding: 0 1px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -238,6 +247,31 @@
                         </select>
                     </div>
                 </div>
+                <!-- ===== Search Box ===== -->
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <label for="search-input" class="block text-sm font-medium text-gray-700 mb-1">
+                        ค้นหาในข้อมูล <span class="text-gray-400 font-normal">(ค้นทุกช่อง — พิมพ์เพื่อกรองทันที)</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                            </div>
+                            <input type="text" id="search-input"
+                                placeholder="เช่น ชื่อพนักงาน, เลขเอกสาร, Cost Center…"
+                                class="block w-full pl-9 pr-3 rounded-md border-2 border-gray-300 bg-gray-50 p-2 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                disabled>
+                        </div>
+                        <button id="clear-search-button" class="hidden items-center gap-1 px-3 py-2 text-sm text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md border-2 border-red-200 transition-colors">
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            ล้าง
+                        </button>
+                    </div>
+                    <p id="search-result-info" class="hidden text-xs mt-1.5 font-medium text-indigo-600"></p>
+                </div>
+
                 <div class="mt-4">
                     <button id="apply-filter-button" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
                         แสดงข้อมูล
@@ -320,9 +354,13 @@
         const totalClearingEl = document.getElementById('total-clearing');
         const rowCountEl = document.getElementById('row-count');
         const tableHint = document.getElementById('table-hint');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchButton = document.getElementById('clear-search-button');
+        const searchResultInfo = document.getElementById('search-result-info');
 
         const API_ENDPOINT = '/.netlify/functions/api';
         let currentData = [];
+        let searchDebounceTimer = null;
 
         flatpickr(startDateInput, { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", allowInput: true });
         flatpickr(endDateInput, { dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y", allowInput: true });
@@ -433,7 +471,13 @@
                 if (result.success) {
                     lastUpdateDiv.textContent = `ข้อมูลอัพเดทล่าสุดเมื่อ: ${result.lastUpdate || 'N/A'}`;
                     currentData = result.data;
-                    populateTable(currentData);
+                    // Reset search when new data loads
+                    searchInput.value = '';
+                    clearSearchButton.classList.add('hidden');
+                    clearSearchButton.classList.remove('flex');
+                    searchResultInfo.classList.add('hidden');
+
+                    populateTable(currentData, '');
                     displayTotals(result.totalRequested, result.totalClearing);
                     if (currentData.length > 0) {
                         downloadButton.style.display = 'inline-block';
@@ -441,6 +485,11 @@
                         rowCountEl.textContent = `พบ ${currentData.length.toLocaleString()} รายการ`;
                         rowCountEl.classList.remove('hidden');
                         tableHint.classList.remove('hidden');
+                        // Enable search
+                        searchInput.disabled = false;
+                        searchInput.placeholder = 'พิมพ์เพื่อค้นหา เช่น ชื่อพนักงาน, เลขเอกสาร, Cost Center…';
+                    } else {
+                        searchInput.disabled = true;
                     }
                 } else {
                     alert('ไม่สามารถโหลดข้อมูลได้: ' + result.message);
@@ -458,6 +507,70 @@
         function displayTotals(totalRequested, totalClearing) {
             totalRequestedEl.textContent = (totalRequested || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             totalClearingEl.textContent = (totalClearing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // ===== Search Logic =====
+        function handleSearch() {
+            const term = searchInput.value.trim();
+
+            if (!term) {
+                clearSearchButton.classList.add('hidden');
+                clearSearchButton.classList.remove('flex');
+                searchResultInfo.classList.add('hidden');
+                populateTable(currentData, '');
+                rowCountEl.textContent = `พบ ${currentData.length.toLocaleString()} รายการ`;
+                return;
+            }
+
+            clearSearchButton.classList.remove('hidden');
+            clearSearchButton.classList.add('flex');
+
+            const lowerTerm = term.toLowerCase();
+            const filtered = currentData.filter(row =>
+                Object.values(row).some(val =>
+                    String(val || '').toLowerCase().includes(lowerTerm)
+                )
+            );
+
+            populateTable(filtered, term);
+
+            const total = currentData.length;
+            const found = filtered.length;
+            if (found === 0) {
+                searchResultInfo.textContent = `ไม่พบข้อมูลที่ตรงกับ "${term}"`;
+                searchResultInfo.className = 'text-xs mt-1.5 font-medium text-red-500';
+            } else {
+                searchResultInfo.textContent = `พบ ${found.toLocaleString()} จาก ${total.toLocaleString()} รายการ`;
+                searchResultInfo.className = 'text-xs mt-1.5 font-medium text-indigo-600';
+            }
+            searchResultInfo.classList.remove('hidden');
+            rowCountEl.textContent = `แสดง ${found.toLocaleString()} / ${total.toLocaleString()} รายการ`;
+        }
+
+        function clearSearch() {
+            searchInput.value = '';
+            handleSearch();
+            searchInput.focus();
+        }
+
+        // ===== Highlight helper =====
+        function buildHighlightedNode(text, term) {
+            if (!term || !text) return document.createTextNode(text);
+            const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escaped})`, 'gi');
+            const parts = text.split(regex);
+            const frag = document.createDocumentFragment();
+            parts.forEach(part => {
+                if (part.toLowerCase() === term.toLowerCase()) {
+                    const mark = document.createElement('mark');
+                    mark.className = 'search-highlight';
+                    mark.textContent = part;
+                    frag.appendChild(mark);
+                } else {
+                    frag.appendChild(document.createTextNode(part));
+                }
+            });
+            return frag;
         }
 
         // ===== Helper: detect column type from sample data =====
@@ -490,7 +603,7 @@
         }
 
         // ===== Main table render =====
-        function populateTable(data) {
+        function populateTable(data, searchTerm = '') {
             const tableHead = dataTableContainer.querySelector('thead');
             const tableBody = dataTableContainer.querySelector('tbody');
             tableHead.innerHTML = '';
@@ -559,15 +672,15 @@
                         cell.title = value;
                     } else if (colTypes[i] === 'number') {
                         cell.className = 'col-number';
-                        cell.textContent = value;
+                        cell.appendChild(buildHighlightedNode(value, searchTerm));
                     } else if (colTypes[i] === 'date') {
                         cell.className = 'col-nowrap';
-                        cell.textContent = value;
+                        cell.appendChild(buildHighlightedNode(value, searchTerm));
                     } else {
                         // Text: truncate with tooltip
                         cell.className = 'col-truncate';
                         cell.title = value;
-                        cell.textContent = value;
+                        cell.appendChild(buildHighlightedNode(value, searchTerm));
                     }
 
                     row.appendChild(cell);
@@ -584,6 +697,11 @@
             loginForm.reset();
             resultsSection.classList.add('hidden');
             currentData = [];
+            searchInput.value = '';
+            searchInput.disabled = true;
+            clearSearchButton.classList.add('hidden');
+            clearSearchButton.classList.remove('flex');
+            searchResultInfo.classList.add('hidden');
         }
 
         function handleDownloadExcel() {
@@ -603,6 +721,17 @@
         logoutButton.addEventListener('click', handleLogout);
         downloadButton.addEventListener('click', handleDownloadExcel);
         applyFilterButton.addEventListener('click', handleApplyFilter);
+        clearSearchButton.addEventListener('click', clearSearch);
+
+        // Debounced real-time search (200ms delay)
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(handleSearch, 200);
+        });
+        // Also support Enter key immediately
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') clearSearch();
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('costCenter')) {
