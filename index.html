@@ -704,12 +704,84 @@
             searchResultInfo.classList.add('hidden');
         }
 
+        // ===== Excel export helpers =====
+        // คอลัมน์ (นับจาก 0) ที่ต้องบังคับ format ในไฟล์ที่ export
+        const EXCEL_DATE_COLS   = [0, 17];   // คอลัมน์ A และ R  -> วันที่
+        const EXCEL_NUMBER_COLS = [11, 16];  // คอลัมน์ L และ Q  -> ตัวเลข x,xxx.xx
+        const EXCEL_DATE_FMT    = 'dd/mm/yyyy';
+        const EXCEL_NUMBER_FMT  = '#,##0.00';
+
+        // แปลงค่า "DD/MM/YYYY" (หรือ Date) เป็น Excel serial date
+        function toExcelSerial(value) {
+            if (value instanceof Date && !isNaN(value.getTime())) {
+                return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / 86400000 + 25569;
+            }
+            const s = String(value == null ? '' : value).trim();
+            const m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+            if (!m) return null;
+            const day = Number(m[1]);
+            const month = Number(m[2]);
+            let year = Number(m[3]);
+            if (year > 2400) year -= 543; // เผื่อกรณีเป็นปี พ.ศ.
+            const utc = Date.UTC(year, month - 1, day);
+            if (isNaN(utc)) return null;
+            return utc / 86400000 + 25569;
+        }
+
+        // แปลงค่า "1,234.56" เป็นตัวเลขจริง
+        function toExcelNumber(value) {
+            if (typeof value === 'number') return isFinite(value) ? value : null;
+            const s = String(value == null ? '' : value).replace(/,/g, '').replace(/[^\d.\-]/g, '').trim();
+            if (s === '' || s === '-' || s === '.') return null;
+            const n = parseFloat(s);
+            return isNaN(n) ? null : n;
+        }
+
         function handleDownloadExcel() {
             if (currentData.length === 0) {
                 alert('ไม่มีข้อมูลสำหรับดาวน์โหลด');
                 return;
             }
-            const worksheet = XLSX.utils.json_to_sheet(currentData);
+
+            const headers = Object.keys(currentData[0]);
+            const worksheet = XLSX.utils.json_to_sheet(currentData, { header: headers });
+
+            // เขียนทับเซลล์ให้เป็น type วันที่ / ตัวเลข พร้อม number format
+            for (let i = 0; i < currentData.length; i++) {
+                const r = i + 1; // แถว 0 คือหัวตาราง
+
+                EXCEL_DATE_COLS.forEach(c => {
+                    if (c >= headers.length) return;
+                    const cell = worksheet[XLSX.utils.encode_cell({ r: r, c: c })];
+                    if (!cell) return;
+                    const serial = toExcelSerial(cell.v);
+                    if (serial === null) return;
+                    cell.t = 'n';
+                    cell.v = serial;
+                    cell.z = EXCEL_DATE_FMT;
+                    delete cell.w;
+                });
+
+                EXCEL_NUMBER_COLS.forEach(c => {
+                    if (c >= headers.length) return;
+                    const cell = worksheet[XLSX.utils.encode_cell({ r: r, c: c })];
+                    if (!cell) return;
+                    const num = toExcelNumber(cell.v);
+                    if (num === null) return;
+                    cell.t = 'n';
+                    cell.v = num;
+                    cell.z = EXCEL_NUMBER_FMT;
+                    delete cell.w;
+                });
+            }
+
+            // ความกว้างคอลัมน์ให้พออ่าน
+            worksheet['!cols'] = headers.map((h, i) => {
+                if (EXCEL_DATE_COLS.indexOf(i) !== -1) return { wch: 12 };
+                if (EXCEL_NUMBER_COLS.indexOf(i) !== -1) return { wch: 14 };
+                return { wch: Math.min(Math.max(String(h).length + 2, 10), 30) };
+            });
+
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
             const today = new Date();
@@ -741,3 +813,4 @@
     </script>
 </body>
 </html>
+
