@@ -196,7 +196,7 @@ exports.handler = async (event, context) => {
                     if (header) {
                         let value = row.get(header) || '';
                         
-                        if (index === 0 || index === 22) {
+                        if (index === 0 || index === 18 || index === 22) {
                             const dateObj = parseSheetDate(value);
                             if (dateObj) {
                                 const day = String(dateObj.getUTCDate()).padStart(2, '0');
